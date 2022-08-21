@@ -1,0 +1,1502 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>GIS Public Portal</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <link rel="stylesheet" href="https://www.mymanatee.org/arcgis_js_api/library/3.21/arcgis/esri/css/esri.css">
+    <link rel="stylesheet"
+        href="https://www.mymanatee.org/arcgis_js_api/library/3.21/arcgis/dijit/themes/nihilo/nihilo.css">
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.3.1/css/all.css"
+        integrity="sha384-mzrmE5qonljUremFsqc01SB46JvROS7bZs3IO2EmfFsd15uHvIt+Y8vEf7N7fWAU" crossorigin="anonymous">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://www.mymanatee.org/arcgis_js_api/library/3.21/arcgis/init.js"></script>
+    <script>
+        require([
+            "dojo/parser",
+            "dijit/registry",
+            "esri/map",
+            "dojo/dom",
+            "dojo/dom-style",
+            "dojo/_base/array",
+            "dojo/number", "dojo/_base/Color", "esri/symbols/SimpleMarkerSymbol", "esri/symbols/SimpleLineSymbol", "esri/symbols/SimpleFillSymbol",
+            "dojo/currency",
+            "dojo/date/locale",
+            "dojo/on", "dojo/keys",
+            "dojo/date/locale",
+            "dojo/dom-class",
+            "dojo/_base/json",
+            "esri/tasks/DataFile",
+            "esri/config", "esri/graphic", "esri/tasks/FeatureSet", "esri/geometry/Point", "esri/geometry/Polygon", "esri/SpatialReference",
+            "esri/request",
+            "dijit/form/Button",
+            "dijit/form/TextBox",
+            "esri/tasks/FeatureSet",
+            "esri/tasks/ClosestFacilityTask",
+            "esri/tasks/ClosestFacilityParameters",
+            "dojo/domReady!"
+        ],
+            function (
+                parser, registry,
+                Map,
+                dom,
+                domStyle, array, number, Color, SimpleMarkerSymbol, SimpleLineSymbol, SimpleFillSymbol, currency, locale,
+                on, keys,
+                locale,
+                domClass,
+                dojoJson, DataFile,
+                esriConfig, Graphic, FeatureSet, Point, Polygon, SpatialReference,
+                esriRequest,
+                Button, TextBox, FeatureSet, ClosestFacilityTask, ClosestFacilityParameters
+            ) {
+
+                parser.parse();
+                //initialize symbology
+                var bradBeachUtilLink = 'http://www.cityofbradentonbeach.com/';
+                var cobUtilLink = 'https://cityofbradenton.com/solidwaste';
+                var holmesUtilLink = 'http://holmesbeachfl.org/cities/cohb/default.asp?section=5';
+                var lkUtilLink = 'https://www.longboatkey.org/pview.aspx?id=19561';
+                var plUtilLink = 'https://www.palmettofl.org/index.aspx?NID=84';
+
+
+                var cfTaskUrl = "https://www.mymanatee.org/arcgis02/rest/services/routing/routing2/NAServer/Closest%20Facility";
+                var clearBtn = new Button({
+                    label: "CLEAR",
+                    showLabel: true,
+                    id: "clearBtn",
+                    onClick: function () {
+                        //blank values
+                        domStyle.set('resultHeader', 'display', 'none');
+                        domStyle.set('resultContainer', 'display', 'none');
+                        domStyle.set('propContainer', 'display', 'none');
+
+
+                        var rt = dom.byId("resultTable");
+                        while (rt.firstChild) {
+                            rt.removeChild(rt.firstChild);
+                        }
+                        dom.byId('address').innerHTML = "";
+                        dom.byId('parcelID').innerHTML = "";
+                        dom.byId('floodZone').innerHTML = "";
+                        dom.byId('city').innerHTML = "";
+                        dom.byId('zip').innerHTML = "";
+                        dom.byId('subdivision').innerHTML = "";
+                        dom.byId('zoning').innerHTML = "";
+                        dom.byId('ceZone').innerHTML = "";
+                        dom.byId('coZone').innerHTML = "";
+                        dom.byId('permits').innerHTML = "";
+                        dom.byId('paoLink').href = 'https://www.manateepao.com/';
+
+                        //Utilities Info
+                        dom.byId('trashCollection').innerHTML = "";
+                        dom.byId('recyclingCollection').innerHTML = "";
+                        dom.byId('yardWasteCollection').innerHTML = "";
+                        dom.byId('trashLink').href = "";
+                        dom.byId('recycleLink').href = "";
+                        dom.byId('yardLink').href = "";
+                        domStyle.set('trashLink', 'display', 'none');
+                        domStyle.set('recycleLink', 'display', 'none');
+                        domStyle.set('yardLink', 'display', 'none');
+                        dom.byId('collector').innerHTML = "";
+                        dom.byId('communityCleanup').innerHTML = "";
+                        dom.byId('wateringDays').innerHTML = "";
+
+                        //Political
+                        dom.byId('countyCommDist').innerHTML = "";
+                        dom.byId('countyCommName').innerHTML = "";
+                        dom.byId('votingPrecinct').innerHTML = "";
+                        dom.byId('pollingSite').innerHTML = "";
+
+                        //Public Safety
+                        dom.byId('evacLevel').innerHTML = "";
+                        dom.byId('shelter').innerHTML = "";
+                        dom.byId('petShelter').innerHTML = "";
+                        dom.byId('policeDistrict').innerHTML = "";
+                        dom.byId('fireDistrict').innerHTML = "";
+
+                        //Schools
+                        dom.byId('nearES').innerHTML = "";
+                        dom.byId('nearMS').innerHTML = "";
+                        dom.byId('nearHS').innerHTML = "";
+
+                        //PAO
+                        dom.byId('yrblt').innerHTML = "";
+                        dom.byId('assessed').innerHTML = "";
+                        dom.byId('saleDate').innerHTML = "";
+                        dom.byId('salePrice').innerHTML = "";
+
+                    }
+                }, "clearBtnParent").startup();
+                var searchBtn = new Button({
+                    label: "SEARCH",
+                    showLabel: true,
+                    id: "searchBtn",
+                    onClick: function () {
+                        dom.byId('clearBtn').click();
+                        //search Address
+                        var rt = dom.byId("resultTable");
+                        while (rt.firstChild) {
+                            rt.removeChild(rt.firstChild);
+                        }
+                        // var where = "PRIMARY_ADDRESS like UPPER ('%" + dom.byId('inputAddress').value + "%')";
+                        var where = getWhere();
+                        var requestHandle = esriRequest({
+                            "url": "https://www.mymanatee.org/arcgis02/rest/services/publicportal/MapServer/0/query",
+                            "content": {
+                                "f": "json",
+                                "where": where,
+                                "outfields": "PARCEL_ID, PRIMARY_ADDRESS,CITY, HASHID",
+                                "returnGeometry": false,
+                                "returnTrueCurves": false,
+                                "returnIdsOnly": false,
+                                "returnCountOnly": false,
+                                "returnZ": false,
+                                "returnM": false,
+                                "returnDistinctValues": false,
+                                "returnExtentsOnly": false,
+                                "orderByFields": "PRIMARY_ADDRESS"
+                            }
+                        });
+                        requestHandle.then(createTable, function (error) {
+                            alert('no address found');
+                            console.log("Request Failed");
+                        });
+                    }
+                }, "searchBtnParent").startup();
+
+                //handle in box click event to execute search
+                on(registry.byId("inputAddress"), "keypress", function (evt) {
+                    if (evt.charOrCode == '13') {
+                        dom.byId('searchBtn').click();
+                    };
+                });
+
+                function getWhere() {
+                    var addr_input = dom.byId('inputAddress').value;
+
+                    //First let's take out any '.' and replace them with nothing
+                    addr_input = addr_input.replace('.', '');
+
+                    //See if there's a city.  If so remove it
+                    addr_input = addr_input.substring(0, addr_input.toUpperCase().indexOf('ANNA MARIA') != -1 ? addr_input.toUpperCase().indexOf('ANNA MARIA') : addr_input.length)
+                    addr_input = addr_input.substring(0, addr_input.toUpperCase().indexOf('BRADENTON BEACH') != -1 ? addr_input.toUpperCase().indexOf('BRADENTON BEACH') : addr_input.length)
+                    addr_input = addr_input.substring(0, addr_input.toUpperCase().indexOf('BRADENTON') != -1 ? addr_input.toUpperCase().indexOf('BRADENTON') : addr_input.length)
+                    addr_input = addr_input.substring(0, addr_input.toUpperCase().indexOf('CORTEZ') != -1 ? addr_input.toUpperCase().indexOf('CORTEZ') : addr_input.length)
+                    addr_input = addr_input.substring(0, addr_input.toUpperCase().indexOf('ELLENTON') != -1 ? addr_input.toUpperCase().indexOf('ELLENTON') : addr_input.length)
+                    addr_input = addr_input.substring(0, addr_input.toUpperCase().indexOf('HOLMES BEACH') != -1 ? addr_input.toUpperCase().indexOf('HOLMES BEACH') : addr_input.length)
+                    addr_input = addr_input.substring(0, addr_input.toUpperCase().indexOf('LONGBOAT KEY') != -1 ? addr_input.toUpperCase().indexOf('LONGBOAT KEY') : addr_input.length)
+                    addr_input = addr_input.substring(0, addr_input.toUpperCase().indexOf('MYAAKA CITY') != -1 ? addr_input.toUpperCase().indexOf('MYAAKA CITY') : addr_input.length)
+                    addr_input = addr_input.substring(0, addr_input.toUpperCase().indexOf('ONECO') != -1 ? addr_input.toUpperCase().indexOf('ONECO') : addr_input.length)
+                    addr_input = addr_input.substring(0, addr_input.toUpperCase().indexOf('PALMETTO') != -1 ? addr_input.toUpperCase().indexOf('PALMETTO') : addr_input.length)
+                    addr_input = addr_input.substring(0, addr_input.toUpperCase().indexOf('PARRISH') != -1 ? addr_input.toUpperCase().indexOf('PARRISH') : addr_input.length)
+                    addr_input = addr_input.substring(0, addr_input.toUpperCase().indexOf('SARASOTA') != -1 ? addr_input.toUpperCase().indexOf('SARASOTA') : addr_input.length)
+                    addr_input = addr_input.substring(0, addr_input.toUpperCase().indexOf('TALLEVAST') != -1 ? addr_input.toUpperCase().indexOf('TALLEVAST') : addr_input.length)
+                    addr_input = addr_input.substring(0, addr_input.toUpperCase().indexOf('TERRA CEIA') != -1 ? addr_input.toUpperCase().indexOf('TERRA CEIA') : addr_input.length)
+                    addr_input = addr_input.substring(0, addr_input.toUpperCase().indexOf('DUETTE') != -1 ? addr_input.toUpperCase().indexOf('DUETTE') : addr_input.length)
+                    addr_input = addr_input.substring(0, addr_input.toUpperCase().indexOf('LAKEWOOD RANCH') != -1 ? addr_input.toUpperCase().indexOf('LAKEWOOD RANCH') : addr_input.length)
+                    addr_input = addr_input.substring(0, addr_input.toUpperCase().indexOf('UNIVERSITY PARK') != -1 ? addr_input.toUpperCase().indexOf('UNIVERSITY PARK') : addr_input.length)
+                    addr_input = addr_input.substring(0, addr_input.toUpperCase().indexOf('WIMAUMA') != -1 ? addr_input.toUpperCase().indexOf('WIMAUMA') : addr_input.length)
+
+
+
+                    //Now replace any ',' with a space
+                    addr_input = addr_input.replace(',', ' ');
+
+                    //Now replace any double spaces with a single space
+                    addr_input = addr_input.replace(/ +(?= )/g, '');
+
+                    //Now remove any characters that aren't numbers, letters, or spaces
+                    addr_input = addr_input.replace(/[^a-zA-Z0-9 ]/g, '');
+
+                    //And let's trim for any spaces at the beginning or end
+                    addr_input = addr_input.trim();
+
+                    //Split the string into array elements by looking for a space
+                    addr_split = addr_input.split(" ");
+
+                    //We'll set up to string variables so we can search for multiple cases
+                    var addr_Num = "";
+                    var addr_Num2 = "";
+                    var addr_Streetname = "";
+                    var addr_Suffix = "";
+                    var addr_Type = "";
+                    var addr_Unit = "";
+                    var startIndex = addr_split.length - 1;
+                    var where = "";
+                    var where2 = "";
+                    splitLength = addr_split.length - 1;
+
+                    //Now we start breaking it down.  If the last element in the array is any form of 'Fl' then we'll drop the last 2 strings in the array
+                    if ((addr_split[startIndex].toUpperCase() == 'FL' || addr_split[startIndex].toUpperCase() == 'FLORIDA') && splitLength > 4) {
+                        addr_split.splice([startIndex - 1], 2);
+                        startIndex = addr_split.length - 1;
+                        splitLength = addr_split.length - 1;
+                    }
+                    //If the next to the last element in the array is any form of 'Fl' then we'll drop the last 3 strings in the array
+                    if (startIndex > 0 && splitLength > 4) {
+                        if (addr_split[startIndex - 1].toUpperCase() == 'FL' || addr_split[startIndex - 1].toUpperCase() == 'FLORIDA') {
+                            addr_split.splice([startIndex - 2], 3);
+                            startIndex = addr_split.length - 2;
+                            splitLength = addr_split.length - 2;
+                        }
+                    }
+
+
+                    //See if there's a apartment, suite, or lot
+                    var i;
+                    for (i = startIndex; i > -1; i--) {
+                        switch (addr_split[i].toUpperCase()) {
+                            case "APT":
+                            case "APART":
+                            case "APARTMENT":
+                            case "APT":
+                                addr_Unit = "APT"
+                                break;
+                            case "LOT":
+                            case "LT":
+                                addr_Unit = "LOT"
+                                break;
+                            case "STE":
+                            case "SUITE":
+                                addr_Unit = "STE";
+                                break;
+                            case "UNIT":
+                            case "UNT":
+                                addr_Unit = "UNIT";
+                                break;
+                            case "UNT":
+                                addr_Unit = "LOT";
+                                break;
+                        }
+                        if (addr_Unit != "") {
+                            if (addr_split[i + 1] != undefined) {
+                                addr_Unit = addr_Unit + " " + addr_split[i + 1];
+                            }
+
+                            startIndex = i - 1
+                            i = -1;
+                        }
+                    }
+
+                    if (startIndex > 0) {
+                        //Now we need to figure out if there's a directional suffix.  
+                        addr_Suffix = checkDirSuffix(addr_split[startIndex].toUpperCase())
+                        if (addr_Suffix.trim() != "") {
+                            startIndex = startIndex - 1;
+                        }
+                    }
+
+                    if (startIndex > 0) {
+                        //Let's see if there's a street type
+                        if (!isNaN(addr_split[startIndex])) {
+                            startIndex = startIndex - 1
+                        }
+                        addr_Type = checkStreetType(addr_split[startIndex].toUpperCase())
+                        if (addr_Type != "") {
+                            addr_Type = " " + addr_Type;
+                            startIndex = startIndex - 1;
+                        }
+                    }
+
+                    //if it's not a street type, check to see if it's numeric.  
+                    //if it isn't numeric then it has to be the street name
+                    for (i = startIndex; i > -1; i--) {
+                        if (isNaN(addr_split[i])) {
+                            addr_Streetname = (addr_split[i] + " " + addr_Streetname).trim();
+
+                        }
+                        else {
+                            if (i == 1) {
+                                addr_Streetname = (addsuffix(addr_split[i]) + " " + addr_Streetname).trim();
+                                addr_Num = addr_split[i - 1]
+                                break;
+                            }
+                            if (i == 0) {
+                                //if we're at the first element and there is nothing else then we'll treat the element two ways; as if it's the house # and as if it's the street name
+                                //with the street name we'll add the suffix such as 3rd or 65th
+                                addr_Num = addr_split[i];
+                                addr_Num2 = " " + addsuffix(addr_split[i]);
+                            }
+                        }
+                    }
+
+                    addr_Streetname = addr_Streetname.toUpperCase().replace(' AVE', ' AVENUE');
+                    addr_Streetname = addr_Streetname.toUpperCase().replace(' AVENUENUE', ' AVENUE');
+                    addr_Streetname = addr_Streetname.toUpperCase().replace(' ST', ' STREET');
+                    addr_Streetname = addr_Streetname.toUpperCase().replace(' STSTREET', ' STREET');
+                    addr_Streetname = addr_Streetname.toUpperCase().replace(' STREETREET', ' STREET');
+                    addr_Streetname = addr_Streetname.toUpperCase().replace(' STREETREAM', ' STREAM');
+                    addr_Streetname = addr_Streetname.toUpperCase().replace(' STREETATE', ' STATE');
+                    addr_Streetname = addr_Streetname.toUpperCase().replace(' STREETRAND', ' STRAND');
+                    addr_Streetname = addr_Streetname.toUpperCase().replace(' STREETALLION', ' STALLION');
+                    addr_Streetname = addr_Streetname.toUpperCase().replace(' AVENUELLINO', ' AVELLINO');
+                    addr_Streetname = addr_Streetname.toUpperCase().replace('THE PLZ', 'THE PLAZA');
+                    addr_Streetname = addr_Streetname.toUpperCase().replace(' STREETUMP', ' STUMP');
+                    if (
+
+                        addr_Streetname.toUpperCase().trim() == 'STATE' && addr_Type.trim() == 'RD') {
+                        addr_Streetname = 'SR';
+                        addr_Type = '';
+                    };
+
+                    //fix users using directional prefixes																									//	fix users using prefixes																							
+                    switch (addr_Streetname.substring(0, 2).toUpperCase()) {
+                        case 'W ':
+                            addr_Streetname = 'WEST ' + addr_Streetname.substring(2);
+                            break;
+                        case 'NW ':
+                            addr_Streetname = 'NORTHWEST ' + addr_Streetname.substring(2);
+                            break;
+                        case 'SW ':
+                            addr_Streetname = 'SOUTHWEST ' + addr_Streetname.substring(2);
+                            break;
+                        case 'E ':
+                            addr_Streetname = 'EAST ' + addr_Streetname.substring(2);
+                            break;
+                        case 'SE ':
+                            addr_Streetname = 'SOUTHEAST ' + addr_Streetname.substring(2);
+                            break;
+                        case 'NE ':
+                            addr_Streetname = 'NORTHEAST ' + addr_Streetname.substring(2);
+                            break;
+                        case 'N ':
+                            if (addr_Streetname.substring(0, 5).toUpperCase() != 'N BAY' && addr_Streetname.substring(0, 8).toUpperCase() != 'N HARBOR' && addr_Streetname.substring(0, 4).toUpperCase() != 'N US') {
+                                addr_Streetname = 'NORTH ' + addr_Streetname.substring(2);
+                            }
+                            break;
+                        case 'S ':
+                            if (addr_Streetname.substring(0, 5).toUpperCase() != 'S BAY' && addr_Streetname.substring(0, 8).toUpperCase() != 'S HARBOR') {
+                                addr_Streetname = 'SOUTH ' + addr_Streetname.substring(2);
+                            }
+                            break;
+                    }
+
+                    //fix state roads
+                    if (addr_Streetname == 'SR' && addr_Suffix.trim() != '') {
+                        addr_Suffix = '';
+                    }
+                    if (addr_Streetname == 'EAST STATE') {
+                        addr_Streetname = 'SR';
+                        addr_Type = '';
+                    }
+
+
+                    //concatenate all the parts we've gathered.  
+                    where = "(";
+                    if (addr_Num != "") {
+                        where = where + "(PRIMARY_ADDRESS like UPPER ('" + addr_Num + "%')";
+                    }
+
+
+                    if (addr_Num2.trim() != "") {
+                        where = where + " OR PRIMARY_ADDRESS like UPPER ('%" + addr_Num2 + "%')";
+                    }
+                    if (addr_Num != "" || addr_Num != "") {
+                        where = where + ") AND ";
+                    }
+                    //If there wasn't a suffix then we'll have to try each one
+                    if (addr_Suffix.trim() == "") {
+                        where = where + "PRIMARY_ADDRESS LIKE UPPER('%" + (addr_Streetname + " " + addr_Type).trim() + "%')";
+                    }
+                    else {
+                        where = where + "PRIMARY_ADDRESS LIKE UPPER('%" + ((addr_Streetname + " " + addr_Type).trim() + " " + addr_Suffix).trim() + "%')";
+                    }
+
+                    // If there's a unit specified, let's check all the types of units in case they entered the wrong one
+                    if (addr_Unit.trim() != "") {
+                        addr_Unit_array = addr_Unit.split(" ");
+                        if (addr_Unit_array.length == 2) {
+                            where = where + " AND (PRIMARY_ADDRESS like UPPER('%APT " + addr_Unit_array[1] + "%')";
+                            where = where + " OR PRIMARY_ADDRESS like UPPER('%UNIT " + addr_Unit_array[1] + "%')";
+                            where = where + " OR PRIMARY_ADDRESS like UPPER('%STE " + addr_Unit_array[1] + "%')";
+                            where = where + " OR PRIMARY_ADDRESS like UPPER('%LOT " + addr_Unit_array[1] + "%')))";
+                        }
+                        else {
+                            where = where + " AND (PRIMARY_ADDRESS like UPPER('%PT%')";
+                            where = where + " OR PRIMARY_ADDRESS like UPPER('%UNIT%')";
+                            where = where + " OR PRIMARY_ADDRESS like UPPER('%STE%')";
+                            where = where + " OR PRIMARY_ADDRESS like UPPER('%LOT%')))";
+
+                        }
+
+                    }
+                    else {
+                        where = where + ")";
+                    }
+                    where = where.toUpperCase().replace(new RegExp("   ", 'g'), " ");
+                    where = where.replace(new RegExp("  ", 'g'), " ");
+                                                                                                         < !-- if (where.indexOf(' AVE ') > -1 || where.indexOf(' ST ') > -1 || where.indexOf(' PT ') > -1 || where.indexOf(' CIR ') > -1 || where.indexOf(' PL ') > -1 || where.indexOf(' LN ') > -1) -->
+                                                                                                         < !--{ -->
+                                                                                                             < !--where2 = where.replace(new RegExp(' AVE ', 'g'), ' AVENUE '); -->
+                                                                                                             < !--where2 = where2.replace(new RegExp(' ST ', 'g'), ' STREET ')-- >
+                                                                                                             < !--where2 = where2.replace(new RegExp(' PT ', 'g'), ' POINT ')-- >
+                                                                                                             < !--where2 = where2.replace(new RegExp(' CIR ', 'g'), ' CIRCLE ')-- >
+                                                                                                             < !--where2 = where2.replace(new RegExp(' PL ', 'g'), ' PLACE ')-- >
+                                                                                                             < !--where2 = where2.replace(new RegExp(' LN ', 'g'), ' LANE ')-- >
+                                                                                                             < !-- } -->
+                                                                                                             < !-- else -->
+                                                                                                             < !--{ -->
+                                                                                                                 < !-- if (where.indexOf(' AVENUE ') > -1 || where.indexOf(' STREET ') > -1 || where.indexOf(' POINT ') > -1 || where.indexOf(' CIRCLE ') > -1 || where.indexOf(' PLACE ') > -1 || where.indexOf(' LANE ') > -1) -->
+                                                                                                                 < !--{ -->
+                                                                                                                     < !--where2 = where.replace(new RegExp(' AVENUE ', 'g'), ' AVE '); -->
+                                                                                                                     < !--where2 = where2.replace(new RegExp(' STREET ', 'g'), ' ST ')-- >
+                                                                                                                     < !--where2 = where2.replace(new RegExp(' POINT ', 'g'), ' PT ')-- >
+                                                                                                                     < !--where2 = where2.replace(new RegExp(' CIRCLE ', 'g'), ' CIR ')-- >
+                                                                                                                     < !--where2 = where2.replace(new RegExp(' PLACE ', 'g'), ' PL ')-- >
+                                                                                                                     < !--where2 = where2.replace(new RegExp(' LANE ', 'g'), ' LN ')-- >
+                                                                                                                     < !-- } -- >
+                                                                                                                     < !-- } -->
+         
+         
+                                                                                                                     if (where2 != "") {
+            where = where + " OR " + where2;
+        }
+
+        return where.replace(/ %/g, '%').replace(/% /g, '%')
+         
+                                                                                                                 }
+        var initialCenter = new Point(-9179673.2, 3187885.94, new SpatialReference({ wkid: 3857 }));
+        var initialLevel = 11;
+        var map = new Map("map", {
+            basemap: "streets",
+            center: initialCenter, // lon, lat
+            zoom: initialLevel,
+            spatialReference: { wkid: 3857 }
+        });
+
+        function checkStreetType(streetName) {
+            //alert(streetName);
+            switch (streetName.toUpperCase()) {
+                case 'AVE':
+                case 'AVENUE':
+                    return 'AVE';
+                case 'BLF':
+                case 'BLUFF':
+                    return 'BLF';
+                case 'BLVD':
+                case 'BOULEVARD':
+                    return 'BLVD';
+                case 'BND':
+                case 'BEND':
+                    return 'BND';
+                case 'CIR':
+                case 'CIRCLE':
+                    return 'CIR';
+                case 'COVE':
+                    return 'CV';
+                case 'CT':
+                case 'COURT':
+                    return 'CT';
+                case 'CV':
+                    return 'CV';
+                case 'DR':
+                case 'DRIVE':
+                    return 'DR';
+                case 'GLN':
+                case 'GLENN':
+                    return 'GLN';
+                case 'HWY':
+                case 'HIGHWAY':
+                    return 'HWY';
+                case 'LN':
+                case 'LANE':
+                    return 'LN';
+                case 'LOOP':
+                    return 'LOOP';
+                case 'PIKE':
+                    return 'PIKE';
+                case 'PKWY':
+                case 'PARKWAY':
+                    return 'PKWY';
+                case 'PL':
+                case 'PLACE':
+                    return 'PL';
+                case 'PLZ':
+                case 'PLAZA':
+                    return 'PLZ';
+                case 'RD':
+                case 'ROAD':
+                    return 'RD';
+                case 'RUN':
+                    return 'RUN';
+                case 'ST':
+                case 'STREET':
+                    return 'ST';
+                case 'TER':
+                case 'TERR':
+                case 'TERRACE':
+                    return 'TER';
+                case 'TRCE':
+                case 'TRACE':
+                    return 'TRCE';
+                case 'TRL':
+                case 'TRAIL':
+                    return 'TRL';
+                case 'WALK':
+                    return 'WALK';
+                case 'WAY':
+                    return 'WAY';
+                case 'XING':
+                case 'CROSSING':
+                    return 'XING';
+
+
+                default:
+                    return '';
+            }
+        }
+
+
+        function checkDirSuffix(dirSuffix) {
+            switch (dirSuffix.toUpperCase()) {
+                case "N":
+                case "NORTH":
+                    return "N";
+
+                case "S":
+                case "SOUTH":
+                    return "S";
+
+                case "E":
+                case "EAST":
+                    return "E";
+
+                case "W":
+                case "WEST":
+                    return "W";
+
+                case "NE":
+                case "EN":
+                case "NORTHEAST":
+                case "EASTNORTH":
+                    return "NE";
+
+                case "NW":
+                case "WN":
+                case "NORTHWEST":
+                case "WESTNORTH":
+                    return "NW";
+
+                case "SW":
+                case "WS":
+                case "SOUTHWEST":
+                case "WESTSOUTH":
+                    return "SW";
+
+                case "SE":
+                case "ES":
+                case "SOUTHEAS":
+                case "EASTSOUTH":
+                    return "SW";
+
+                default:
+                    return "";
+
+            }
+        }
+
+
+        function addsuffix(address) {
+            //dont add st to 301 to make 301st
+            if (address.lastIndexOf("301") == (address.trim().length - 3)) {
+                streetname = address;
+            }
+            else if (address.lastIndexOf("1") == (address.trim().length - 1)) {
+                streetname = address + "ST";
+            }
+            else if (address.lastIndexOf("2") == (address.trim().length - 1)) {
+                streetname = address + "ND";
+            }
+            else if (address.lastIndexOf("3") == (address.trim().length - 1)) {
+                streetname = address + "RD";
+            }
+            else {
+                streetname = address + "TH";
+            }
+            return streetname;
+        }
+
+
+        function createTable(response, io) {
+            //alert('creating table');
+            domStyle.set('resultHeader', 'display', 'block');
+            domStyle.set('resultContainer', 'display', 'block');
+            var tbl = document.getElementById("resultTable");
+            var tblBody = document.createElement("tbody");
+
+            var header = tbl.createTHead();
+            var headerRow = header.insertRow(0);
+            var headerCell = document.createElement("th");
+            headerCell.innerHTML = "Parcel ID";
+            headerRow.appendChild(headerCell);
+            var headerCell2 = document.createElement("th");
+            headerCell2.innerHTML = "Address";
+            headerRow.appendChild(headerCell2);
+            var headerCell3 = document.createElement("th");
+            headerCell3.innerHTML = "City";
+            headerRow.appendChild(headerCell3);
+            var rowCount = 0;
+            var currentRow = null;
+            response.features.forEach(function (feature) {
+                var row = document.createElement("tr");
+                var cell = document.createElement("td");
+                var cell2 = document.createElement("td");
+                var cell3 = document.createElement("td");
+                var cell4 = document.createElement("td");
+                if (feature.attributes.PARCEL_ID) {
+                    cell.innerHTML = feature.attributes.PARCEL_ID;
+                }
+                if (feature.attributes.PRIMARY_ADDRESS) {
+                    cell2.innerHTML = feature.attributes.PRIMARY_ADDRESS;
+                }
+                if (feature.attributes.HASHID) {
+                    cell3.innerHTML = feature.attributes.HASHID;
+                    cell3.style.display = "none";
+                }
+                if (feature.attributes.CITY) {
+                    cell4.innerHTML = feature.attributes.CITY;
+                }
+
+                row.appendChild(cell);
+                row.appendChild(cell2);
+                row.appendChild(cell3);
+                row.appendChild(cell4);
+
+                row.onclick = rowClick(row);
+                tblBody.appendChild(row);
+                currentRow = row;
+                rowCount++;
+            });
+
+            tbl.appendChild(tblBody);
+            if (rowCount == 1) {
+                currentRow.click();
+            }
+
+        }
+
+        function addUtilLink(value, link) {
+            switch (value) {
+                case 'CALL - City of Bradenton':
+                    dom.byId(link).href = cobUtilLink;
+                    domStyle.set(link, 'display', 'block');
+                    break;
+                case 'CALL - City of Palmetto':
+                    dom.byId(link).href = plUtilLink;
+                    domStyle.set(link, 'display', 'block');
+                    break;
+                case 'CALL - City of Bradenton Beach':
+                    dom.byId(link).href = bradBeachUtilLink;
+                    domStyle.set(link, 'display', 'block');
+                    break;
+                case 'CALL - City of Longboat Key':
+                    dom.byId(link).href = lkUtilLink;
+                    domStyle.set(link, 'display', 'block');
+                    break;
+                case 'CALL - City of Holmes Beach':
+                    dom.byId(link).href = holmesUtilLink;
+                    domStyle.set(link, 'display', 'block');
+                    break;
+            }
+        }
+
+
+        function populateParcelData(response, io) {
+            //add map. ZOOM TO
+            domStyle.set('resultHeader', 'display', 'none');
+            domStyle.set('resultContainer', 'display', 'none');
+            domStyle.set('propContainer', 'display', 'block');
+            domStyle.set('map', 'display', 'block');
+
+            //zoom to feature TODO
+
+            //Property Info                 
+            dom.byId('address').innerHTML = response.features[0].attributes.PRIMARY_ADDRESS;
+            dom.byId('parcelID').innerHTML = response.features[0].attributes.PARCEL_ID;
+            //update pao link
+            dom.byId('paoLink').href = 'https://www.manateepao.com/parcel/?parid=' + response.features[0].attributes.PARCEL_ID;
+
+            dom.byId('floodZone').innerHTML = response.features[0].attributes.FLOOD_ZONE;
+            dom.byId('city').innerHTML = response.features[0].attributes.CITY + ", ";
+            dom.byId('zip').innerHTML = response.features[0].attributes.PROP_ZIP;
+            dom.byId('subdivision').innerHTML = response.features[0].attributes.SUBDIVISION;
+            dom.byId('zoning').innerHTML = response.features[0].attributes.ZONING;
+            dom.byId('ceZone').innerHTML = response.features[0].attributes.CODE_ENFORCEMENT_ZONE;
+            dom.byId('coZone').innerHTML = response.features[0].attributes.CODE_OFFICER_ZONE;
+            dom.byId('permits').innerHTML = "<a target='_blank' href='https://aca3.accela.com/MANATEE/Cap/GlobalSearchResults.aspx?QueryText=" + response.features[0].attributes.HASHID + "#'>View Permits Online</a>";
+
+            //Utilities Info
+            dom.byId('trashCollection').innerHTML = response.features[0].attributes.SOLID_WASTE_PICKUP_DAYS;
+            addUtilLink(response.features[0].attributes.SOLID_WASTE_PICKUP_DAYS, 'trashLink');
+            dom.byId('recyclingCollection').innerHTML = response.features[0].attributes.RECYCLING_PICKUP_DAYS;
+            addUtilLink(response.features[0].attributes.RECYCLING_PICKUP_DAYS, 'recycleLink');
+            dom.byId('yardWasteCollection').innerHTML = response.features[0].attributes.YARD_WASTE_PICKUP_DAY;
+            addUtilLink(response.features[0].attributes.YARD_WASTE_PICKUP_DAY, 'yardLink');
+            dom.byId('collector').innerHTML = response.features[0].attributes.HAULERS;
+            if (response.features[0].attributes.COMM_CLEANUP_COMMUNITY) {
+                dom.byId('communityCleanup').innerHTML = response.features[0].attributes.COMM_CLEANUP_COMMUNITY + '-' + response.features[0].attributes.COMM_CLEANUP_DATE + '-' + response.features[0].attributes.COMM_CLEANUP_TYPE + '-' + response.features[0].attributes.COMM_CLEANUP_HAULER;//response.features[0].attributes.SUBDIVISION;
+            }
+            else {
+                dom.byId('communityCleanup').innerHTML = 'No Cleanup Scheduled';
+            }
+
+            dom.byId('wateringDays').innerHTML = response.features[0].attributes.WATERING;//response.features[0].attributes.ZONING;
+
+            //Political
+            dom.byId('countyCommDist').innerHTML = response.features[0].attributes.COMMDIST;
+            dom.byId('countyCommName').innerHTML = response.features[0].attributes.COMMNAME;
+            dom.byId('votingPrecinct').innerHTML = response.features[0].attributes.VOTING_PRECINCT;
+            dom.byId('pollingSite').innerHTML = response.features[0].attributes.VOTE_PRECINCT_LOC + ' ' + response.features[0].attributes.VOTE_PRECINCT_ADDR + ', ' + response.features[0].attributes.VOTE_PRECINCT_CITY + ' ' + response.features[0].attributes.VOTE_PRECINCT_ZIP;
+
+            //Public Safety
+            dom.byId('evacLevel').innerHTML = response.features[0].attributes.EVACUATION_ZONE;
+            dom.byId('shelter').innerHTML = '';
+            dom.byId('petShelter').innerHTML = '';
+            dom.byId('policeDistrict').innerHTML = response.features[0].attributes.POLICE_DEPT;
+            dom.byId('fireDistrict').innerHTML = response.features[0].attributes.FIRE_DISTRICT;
+
+            //Schools
+            dom.byId('nearES').innerHTML = response.features[0].attributes.ELEMENTARY_SCHOOL;
+            dom.byId('nearMS').innerHTML = response.features[0].attributes.MIDDLE_SCHOOL;
+            dom.byId('nearHS').innerHTML = response.features[0].attributes.HIGH_SCHOOL;
+
+            //PAO
+            if (response.features[0].attributes.YRBLT) {
+                dom.byId('yrblt').innerHTML = response.features[0].attributes.YRBLT;
+            } else {
+                dom.byId('yrblt').innerHTML = 'Not Available';
+            }
+            dom.byId('assessed').innerHTML = currency.format(response.features[0].attributes.ASSESSED_VALUE, { currency: "USD" });
+            dom.byId('saleDate').innerHTML = locale.format(locale.parse(response.features[0].attributes.SALEDATE, { selector: "date", datePattern: "dd-MMM-yy" }), { selector: "date", formatLength: "medium" });
+            dom.byId('salePrice').innerHTML = currency.format(response.features[0].attributes.SALEPRICE, { currency: "USD" });
+
+        }
+
+        function populateNearestData(response, io) {
+            //alert('nearest');
+            //alert(map.spatialReference.wkid);
+            var highlightSymbol =
+                new SimpleFillSymbol(SimpleFillSymbol.STYLE_SOLID,
+                    new SimpleLineSymbol(SimpleLineSymbol.STYLE_SOLID,
+                        new Color([0, 255, 255]), 3), new Color([20, 150, 235, 0.50]));
+
+            params = new ClosestFacilityParameters();
+            console.dir(response.features[0].geometry)
+            var poly = new Polygon(response.features[0].geometry);
+            poly.setSpatialReference(map.spatialReference);
+
+            var pt = new Point(poly.getCentroid().x, poly.getCentroid().y);
+            pt.setSpatialReference(map.spatialReference);
+            map.graphics.clear();
+            map.graphics.add(new Graphic(poly, highlightSymbol));
+
+            var location = new Graphic(pt);
+            map.centerAndZoom(pt, 18);
+            var incidents = new FeatureSet();
+            incidents.features = [location];
+            //add facilities
+            var nearestShelter = 'https://www.mymanatee.org/arcgis02/rest/services/publicportal/MapServer/1/';
+            var nearestPetShelter = 'https://www.mymanatee.org/arcgis02/rest/services/publicportal/MapServer/2/';
+            var nearestPark = 'https://www.mymanatee.org/arcgis02/rest/services/publicportal/MapServer/3/';
+            var nearestPreserve = 'https://www.mymanatee.org/arcgis02/rest/services/publicportal/MapServer/4/';
+            //  var nearestPollingSite = 'https://www.mymanatee.org/arcgis02/rest/services/publicportal/MapServer/5/';
+            var nearestLibrary = 'https://www.mymanatee.org/arcgis02/rest/services/publicportal/MapServer/6/';
+            var nearestBusStop = 'https://www.mymanatee.org/arcgis02/rest/services/publicportal/MapServer/7/';
+            var nearestHospital = 'https://www.mymanatee.org/arcgis02/rest/services/publicportal/MapServer/8/';
+
+            params.incidents = incidents;
+            params.impedenceAttribute = "Miles";
+            params.defaultCutoff = null;
+            params.returnIncidents = false;
+            params.returnRoutes = true;
+            params.returnDirections = false;
+            params.returnFacilities = false;
+            params.outSR = 3857;
+            closestFacilityTask = new ClosestFacilityTask(cfTaskUrl);
+            closestFacilityTask2 = new ClosestFacilityTask(cfTaskUrl);
+            closestFacilityTask3 = new ClosestFacilityTask(cfTaskUrl);
+            closestFacilityTask4 = new ClosestFacilityTask(cfTaskUrl);
+            closestFacilityTask5 = new ClosestFacilityTask(cfTaskUrl);
+            closestFacilityTask6 = new ClosestFacilityTask(cfTaskUrl);
+            closestFacilityTask7 = new ClosestFacilityTask(cfTaskUrl);
+            closestFacilityTask8 = new ClosestFacilityTask(cfTaskUrl);
+
+            //solve shelters
+            params.facilities = new DataFile({
+                url: nearestShelter + "query?where=1%3D1&returnGeometry=true&f=json"
+            });
+            closestFacilityTask.solve(params, function (solveResult) {
+                array.forEach(solveResult.routes, function (route, index) {
+                    if (index == 0) {
+                        dom.byId('shelter').innerHTML = route.attributes.Name.replace('Location 1 - ', '');
+                        dom.byId('shelterDistance').innerHTML = number.format(route.attributes.Total_Length / 5280, { "places": 1 }) + " miles";
+                    }
+                });
+
+
+            });
+            //solve pet shelter
+            params.facilities = new DataFile({
+                url: nearestPetShelter + "query?where=1%3D1&returnGeometry=true&f=json"
+            });
+
+            closestFacilityTask2.solve(params, function (solveResult) {
+                array.forEach(solveResult.routes, function (route, index) {
+                    if (index == 0) {
+                        dom.byId('petShelter').innerHTML = route.attributes.Name.replace('Location 1 - ', '');
+                        dom.byId('petShelterDistance').innerHTML = number.format(route.attributes.Total_Length / 5280, { "places": 1 }) + " miles";
+                    }
+                });
+            });
+
+            //solve parks
+            params.facilities = new DataFile({
+                url: nearestPark + "query?where=1%3D1&returnGeometry=true&f=json"
+            });
+
+            closestFacilityTask3.solve(params, function (solveResult) {
+                array.forEach(solveResult.routes, function (route, index) {
+                    if (index == 0) {
+                        dom.byId('nearPark').innerHTML = route.attributes.Name.replace('Location 1 - ', '');
+                        dom.byId('nearParkDistance').innerHTML = number.format(route.attributes.Total_Length / 5280, { "places": 1 }) + " miles";
+                    }
+                });
+            });
+
+            //solve preserve
+            params.facilities = new DataFile({
+                url: nearestPreserve + "query?where=1%3D1&returnGeometry=true&f=json"
+            });
+
+            closestFacilityTask4.solve(params, function (solveResult) {
+                array.forEach(solveResult.routes, function (route, index) {
+                    if (index == 0) {
+                        dom.byId('nearPreserve').innerHTML = route.attributes.Name.replace('Location 1 - ', '');
+                        dom.byId('nearPreserveDistance').innerHTML = number.format(route.attributes.Total_Length / 5280, { "places": 1 }) + " miles";
+                    }
+                });
+            });
+
+            //solve library
+            params.facilities = new DataFile({
+                url: nearestLibrary + "query?where=1%3D1&returnGeometry=true&f=json"
+            });
+
+            closestFacilityTask5.solve(params, function (solveResult) {
+                array.forEach(solveResult.routes, function (route, index) {
+                    if (index == 0) {
+                        dom.byId('nearLibrary').innerHTML = route.attributes.Name.replace('Location 1 - ', '');
+                        dom.byId('nearLibraryDistance').innerHTML = number.format(route.attributes.Total_Length / 5280, { "places": 1 }) + " miles";
+                    }
+                });
+            });
+
+            //solve bus
+            params.facilities = new DataFile({
+                url: nearestBusStop + "query?where=1%3D1&returnGeometry=true&f=json"
+            });
+
+            closestFacilityTask6.solve(params, function (solveResult) {
+                array.forEach(solveResult.routes, function (route, index) {
+                    if (index == 0) {
+                        dom.byId('nearBus').innerHTML = route.attributes.Name.replace('Location 1 - ', '');
+                        dom.byId('nearBusDistance').innerHTML = number.format(route.attributes.Total_Length / 5280, { "places": 1 }) + " miles";
+                    }
+                });
+            });
+
+            //solve hospital
+            params.facilities = new DataFile({
+                url: nearestHospital + "query?where=1%3D1&returnGeometry=true&f=json"
+            });
+
+            closestFacilityTask7.solve(params, function (solveResult) {
+                array.forEach(solveResult.routes, function (route, index) {
+                    if (index == 0) {
+                        dom.byId('nearHospital').innerHTML = route.attributes.Name.replace('Location 1 - ', '');
+                        dom.byId('nearHospitalDistance').innerHTML = number.format(route.attributes.Total_Length / 5280, { "places": 1 }) + " miles";
+                    }
+                });
+            });
+
+            //solve polling - retired for Precinct data in Parcels per Racheal - jpp 25sep18
+            //        params.facilities = new DataFile({
+            //         url: nearestPollingSite + "query?where=1%3D1&returnGeometry=true&f=json"
+            //     });
+
+            //        closestFacilityTask8.solve(params, function(solveResult){     
+            //           array.forEach(solveResult.routes, function(route, index){
+            //            if(index==0){
+            //                dom.byId('pollingSite').innerHTML = route.attributes.Name.replace('Location 1 - ','');
+            //            //dom.byId('nearPreserveDistance').innerHTML = number.format(route.attributes.Total_Length/5280,{"places":1})+" miles";
+            //        }
+            //   });
+            //     });
+
+        }
+
+        function rowClick(myrow) {
+
+            //embedded function so it only executes onclick
+            return function () {
+                var cell = myrow.getElementsByTagName("td")[2]; //hashid
+                var id = cell.innerHTML;
+                //alert("searching id:"+id);
+                var where = "HASHID = '" + id + "'";
+                var parcelRequestHandle = esriRequest({
+                    "url": "https://www.mymanatee.org/arcgis02/rest/services/publicportal/MapServer/0/query",
+                    "content": {
+                        "f": "json",
+                        "where": where,
+                        "outFields": "*",
+                        "returnGeometry": true,
+                        "returnTrueCurves": false,
+                        "returnIdsOnly": false,
+                        "returnCountOnly": false,
+                        "returnZ": false,
+                        "returnM": false,
+                        "returnDistinctValues": false,
+                        "returnExtentsOnly": false,
+                        "outSR": 3857,
+                        "orderByFields": "PRIMARY_ADDRESS"
+                    }
+
+                });
+                parcelRequestHandle.then(populateParcelData, function (error) {
+                    alert('no address found');
+                    console.log("Request Failed");
+                });
+
+                var nearestRequestHandle = esriRequest({
+                    "url": "https://www.mymanatee.org/arcgis02/rest/services/publicportal/MapServer/0/query",
+                    "content": {
+                        "f": "json",
+                        "where": where,
+                        "returnGeometry": true,
+                        "returnTrueCurves": false,
+                        "returnIdsOnly": false,
+                        "returnCountOnly": false,
+                        "returnZ": false,
+                        "returnM": false,
+                        "returnDistinctValues": false,
+                        "returnExtentsOnly": false,
+                        "orderByFields": "PRIMARY_ADDRESS"
+                    }
+
+                });
+                nearestRequestHandle.then(populateNearestData, function (error) {
+                    alert('no address found');
+                    console.log("Request Failed");
+                });
+
+            };
+        }
+         
+             });
+    </script>
+</head>
+<style>
+    @import url('https://fonts.googleapis.com/css?family=Open+Sans:300,300i,400,400i') .fade {
+        -webkit-animation: fadein 1s;
+        /* Safari, Chrome and Opera > 12.1 */
+        -moz-animation: fadein 1s;
+        /* Firefox < 16 */
+        -ms-animation: fadein 1s;
+        /* Internet Explorer */
+        -o-animation: fadein 1s;
+        /* Opera < 12.1 */
+        animation: fadein 1s;
+    }
+
+    @keyframes fadein {
+        from {
+            opacity: 0;
+        }
+
+        to {
+            opacity: 1;
+        }
+    }
+
+    /* Firefox < 16 */
+    @-moz-keyframes fadein {
+        from {
+            opacity: 0;
+        }
+
+        to {
+            opacity: 1;
+        }
+    }
+
+    /* Safari, Chrome and Opera > 12.1 */
+    @-webkit-keyframes fadein {
+        from {
+            opacity: 0;
+        }
+
+        to {
+            opacity: 1;
+        }
+    }
+
+    /* Internet Explorer */
+    @-ms-keyframes fadein {
+        from {
+            opacity: 0;
+        }
+
+        to {
+            opacity: 1;
+        }
+    }
+
+    /* Opera < 12.1 */
+    @-o-keyframes fadein {
+        from {
+            opacity: 0;
+        }
+
+        to {
+            opacity: 1;
+        }
+    }
+
+    body {
+        font-family: "Open Sans", sans-serif;
+        font-size: 16px;
+        font-weight: normal;
+        font-style: normal;
+        -webkit-font-smoothing: antialiased !important;
+        -moz-osx-font-smoothing: grayscale;
+        -webkit-text-stroke: 0px !important;
+        background: #fff;
+        color: #212529;
+    }
+
+    #map {
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        height: 300px;
+    }
+
+    input {
+        height: 38px;
+        line-height: 38px;
+        text-indent: 10px;
+    }
+
+    .row {
+        margin-bottom: 30px;
+    }
+
+    #searchBtn {
+        text-decoration: none;
+        border: 2px solid #E56C34;
+        border-radius: 12px;
+        padding: 5px 7px;
+        margin: 5px;
+        transition: all 0.1s linear;
+    }
+
+    #searchBtn:hover,
+    #searchBtn:focus {
+        background: #E56C34;
+    }
+
+    #clearBtn {
+        text-decoration: none;
+        border: 2px solid #E1D2C0;
+        border-radius: 12px;
+        padding: 5px 7px;
+        margin: 5px;
+        transition: all 0.1s linear;
+    }
+
+    #clearBtn:hover,
+    #clearBtn:focus {
+        background: #E1D2C0;
+    }
+
+    #resultTable tr:hover td,
+    #resultTable tr:hover td.highlight {
+        background-color: rgba(225, 210, 192, .2);
+        cursor: pointer;
+    }
+
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
+        font-weight: 300;
+        text-transform: uppercase;
+        color: rgba(0, 0, 0, .8);
+    }
+
+    h2 {
+        font-size: 2em;
+    }
+
+    h3 {
+        font-size: 17px;
+        font-weight: 500;
+        letter-spacing: 0px;
+        line-height: 20px;
+    }
+
+    .headerz span {
+        font-size: 1.1em;
+    }
+
+    dt {
+        font-weight: 500;
+        color: rgba(0, 0, 0, .8);
+        font-size: 15px;
+        padding-bottom: 1px;
+    }
+
+    dd {
+        margin-bottom: 13px;
+        margin-left: 0;
+    }
+
+    .no-display {
+        display: none;
+    }
+
+    #resultContainer {
+        overflow-y: auto;
+        height: 200px;
+        display: none;
+        padding: 10px;
+    }
+
+    .fa {
+        font-size: 15px;
+        margin-right: 1px;
+    }
+
+    .fa-external-link-alt {
+        font-size: 11px;
+        margin-left: 2px;
+        vertical-align: 2px;
+    }
+
+    .card-deck {
+        margin-bottom: 20px;
+    }
+
+    .card {
+        background-color: rgba(0, 0, 0, .03);
+        border: 1px solid rgba(0, 0, 0, .08);
+    }
+
+    .card-title {
+        margin-bottom: 11px;
+        border-bottom: 1px solid rgba(0, 0, 0, .08);
+        padding-bottom: 10px;
+    }
+
+    .card-footer {
+        background-color: transparent;
+        border-top: 1px solid rgba(0, 0, 0, 0.08) !important;
+        font-size: .9em;
+    }
+
+    .card-body {
+        padding: 20px;
+    }
+
+    .btns {
+        display: inline-block;
+    }
+
+    #city {
+        margin-right: -5px;
+    }
+
+    .nihilo .dijitButtonNode {
+        border: 0;
+        border-bottom: 0;
+        padding: 0;
+        background: none;
+    }
+
+    .dijitPlaceHolder {
+        top: 4px;
+        left: 10px;
+    }
+
+    .dijitReset {
+        line-height: 30px;
+    }
+
+    .nihilo .dijitSelect,
+    .nihilo .dijitTextBox,
+    .nihilo .dijitTextArea {
+        border: 1px solid rgba(0, 0, 0, .08) !important;
+    }
+
+    .dijitTextBox {
+        vertical-align: middle;
+    }
+
+    .nihilo .dijitButtonHover .dijitButtonNode,
+    .nihilo .dijitButtonNodeHover,
+    .nihilo .dijitToggleButtonHover .dijitButtonNode,
+    .nihilo .dijitDropDownButtonHover .dijitButtonNode,
+    .nihilo .dijitButtonContentsHover,
+    .nihilo .dijitDownArrowButtonHover,
+    .nihilo .dijitUpArrowButtonHover {
+        background: none !important;
+    }
+
+    .dijitButtonActive {
+        background: none !important;
+    }
+</style>
+
+<body class="nihilo">
+    <div class="container-fluid">
+        <div class="card-deck">
+            <div class="card">
+                <div class="card-body">
+                    <label for="inputAddress">
+                        <h3>Enter your address:</h3>
+                    </label>
+                    <div id='inputContainer'>
+                        <input type="text" name="inputAddress" placeHolder="1112 Manatee Ave W"
+                            data-dojo-type="dijit/form/TextBox" id="inputAddress" />
+                        <div class="btns">
+                            <div id="searchBtnParent" aria-controls="propContainer"></div>
+                            <div id="clearBtnParent"></div>
+                        </div>
+                        <div class="no-display">
+                            <div id="resultHeader">Top 5 Results</div>
+                        </div>
+                        <div id="resultContainer">
+                            <table id="resultTable" colspan='4'></table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div div id="propContainer" role="region" class="fade no-display" aria-live="polite">
+            <div class="card-deck">
+                <div class="card">
+                    <div class="card-body">
+                        <h2>
+                            <span name="address" id="address"></span><br />
+                            <span name="city" id="city"></span>
+                            <span name="state" id="state">&nbsp;FL</span>
+                            <span name="zip" id="zip"></span>
+                        </h2>
+                        <div class="headerz">
+                            <h3>Parcel ID</h3>
+                            <span name="parcelID" id="parcelID"></span>
+                            <h3>Subdivision</h3>
+                            <span name="subdivision" id="subdivision"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div id="map" class="fade no-display"></div>
+                </div>
+            </div>
+            <div class="card-deck">
+                <div class="card">
+                    <div class="card-body">
+                        <h3 class="card-title"><i class="fa fa-recycle" aria-hidden="true"></i> Utilities</h3>
+                        <dl>
+                            <dt>Trash Collection</dt>
+                            <dd>
+                                <span name="trashCollection" id="trashCollection"></span><span> <a
+                                        style="display: none;" target="_blank" id="trashLink" href="">Link <i
+                                            class="fa fa-external-link-alt"></i></a></span>
+                            </dd>
+                            <dt>Recycling Collection</dt>
+                            <dd>
+                                <span name="recyclingCollection" id="recyclingCollection"></span><span> <a
+                                        style="display: none;" target="_blank" id="recycleLink" href="">Link <i
+                                            class="fa fa-external-link-alt"></i></a></span>
+                            </dd>
+                            <dt>Yard Waste Collection</dt>
+                            <dd>
+                                <span name="yardWasteCollection" id="yardWasteCollection"></span><span> <a
+                                        style="display: none;" target="_blank" id="yardLink" href="">Link <i
+                                            class="fa fa-external-link-alt"></i></a></span>
+                            </dd>
+                            <dt>Collector</dt>
+                            <dd name="collector" id="collector"></dd>
+                            <dt>Community Cleanup</dt>
+                            <dd name="communityCleanup" id="communityCleanup"></dd>
+                            <dt>Watering Days</dt>
+                            <dd style="display: none;" name="wateringDays" id="wateringDays"></dd>
+                            <dd>
+                                <a target="_blank"
+                                    href="https://www.mymanatee.org/departments/utilities/manatee_county_water_division/water_conservation/watering_restrictions/">View
+                                    Watering Restrictions</a>
+                            </dd>
+                        </dl>
+                    </div>
+                    <div class="card-footer">
+                        <a target="_blank" href="https://www.mymanatee.org/utilities">Utilities Department</a>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-body">
+                        <h3 class="card-title"><i class="fa fa-medkit" aria-hidden="true"></i> Public Safety</h3>
+                        <dl>
+                            <dt>Evacuation Level</dt>
+                            <dd>
+                                <span name="evacLevel" id="evacLevel"></span><span> - <a target="_blank"
+                                        href="https://www.mymanatee.org/departments/public_safety/emergency_management/evacuation_levels">Learn
+                                        More <i class="fa fa-external-link-alt"></i></a></span>
+                            </dd>
+                            <dt>Nearest Shelter</dt>
+                            <dd>
+                                <span name="shelter" id="shelter"></span> -
+                                <span name="shelterDistance" id="shelterDistance"></span>
+                                <a target="_blank"
+                                    href="https://www.mymanatee.org/departments/public_safety/emergency_management/emergency_shelters">Check
+                                    Status</a>
+                            </dd>
+                            <dt>Nearest Pet-Friendly Shelter</dt>
+                            <dd>
+                                <span name="petShelter" id="petShelter"></span> -
+                                <span name="petShelterDistance" id="petShelterDistance"></span>
+                            </dd>
+                            <dt>Police District</dt>
+                            <dd name="policeDistrict" id="policeDistrict"></dd>
+                            <dt>Fire District</dt>
+                            <dd name="fireDistrict" id="fireDistrict"></dd>
+                        </dl>
+                    </div>
+                    <div class="card-footer">
+                        <a target="_blank" href="https://www.mymanatee.org/manateeready">#ManateeReady</a>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-body">
+                        <h3 class="card-title"><i class="fa fa-university" aria-hidden="true"></i> Political Information
+                        </h3>
+                        <dl>
+                            <dt>County Commission District</dt>
+                            <dd name="countyCommDist" id="countyCommDist"></dd>
+                            <dt>County Commissioner</dt>
+                            <dd>
+                                <span name="countyCommName" id="countyCommName"></span><span> - <a target="_blank"
+                                        href="https://www.mymanatee.org/government/board_of_county_commissioners/">Learn
+                                        More <i class="fa fa-external-link-alt"></i></a></span>
+                            </dd>
+                            <dt>Voting Precinct</dt>
+                            <dd name="votingPrecinct" id="votingPrecinct"></dd>
+                            <dt>Polling Site</dt>
+                            <dd name="pollingSite" id="pollingSite"></dd>
+                        </dl>
+                    </div>
+                    <div class="card-footer">
+                        <a target='_blank'
+                            href='https://www.votemanatee.com/Election-Information/Precinct-Finder-Sample-Ballots'>Vote
+                            Manatee</a>
+                    </div>
+                </div>
+            </div>
+            <div class="card-deck">
+                <div class="card">
+                    <div class="card-body">
+                        <h3 class="card-title"><i class="fa fa-handshake" aria-hidden="true"></i> Community</h3>
+                        <dl>
+                            <dt>Nearest Park</dt>
+                            <dd>
+                                <span name="nearPark" id="nearPark"></span> -
+                                <span name="nearParkDistance" id="nearParkDistance"></span>
+                            </dd>
+                            <dt>Nearest Preserve</dt>
+                            <dd>
+                                <span name="nearPreserve" id="nearPreserve"></span> -
+                                <span name="nearPreserveDistance" id="nearPreserveDistance"></span>
+                            </dd>
+                            <dt>Nearest Library</dt>
+                            <dd>
+                                <span name="nearLibrary" id="nearLibrary"></span> -
+                                <span name="nearLibraryDistance" id="nearLibraryDistance"></span>
+                            </dd>
+                            <dt>Nearest Bus Stop</dt>
+                            <dd>
+                                <span name="nearBus" id="nearBus"></span> -
+                                <span name="nearBusDistance" id="nearBusDistance"></span>
+                            </dd>
+                            <dt>Nearest Hospital</dt>
+                            <dd>
+                                <span name="nearHospital" id="nearHospital"></span> -
+                                <span name="nearHospitalDistance" id="nearHospitalDistance"></span>
+                            </dd>
+                        </dl>
+                    </div>
+                    <div class="card-footer">
+                        <a target="_blank" href="http://www.ridemcat.org">MCAT</a>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-body">
+                        <h3 class="card-title"><i class="fa fa-graduation-cap" aria-hidden="true"></i> Schools</h3>
+                        <dl>
+                            <dt>Elementary School</dt>
+                            <dd name="nearES" id="nearES"></dd>
+                            <dt>Middle School</dt>
+                            <dd name="nearMS" id="nearMS"></dd>
+                            <dt>High School</dt>
+                            <dd name="nearHS" id="nearHS"></dd>
+                        </dl>
+                    </div>
+                    <div class="card-footer">
+                        <a target="_blank" href="https://www.manateeschools.net/">School District of Manatee County</a>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-body">
+                        <h3 class="card-title"><i class="fa fa-home" aria-hidden="true"></i> Property Information</h3>
+                        <dl>
+                            <dt>Flood Zone</dt>
+                            <dd>
+                                <span name="floodZone" id="floodZone"></span><span> - <a target="_blank"
+                                        href="https://www.mymanatee.org/departments/building___development_services/floodplain_management/floodzone/">Learn
+                                        More <i class="fa fa-external-link-alt"></i></a></span>
+                            </dd>
+                            <dt>Zoning</dt>
+                            <dd name="zoning" id="zoning"></dd>
+                            <dt class="no-display">Code Enforcement Zone</dt>
+                            <dd class="no-display" name="ceZone" id="ceZone"></dd>
+                            <dt class="no-display">Code Officer Zone</dt>
+                            <dd class="no-display" name="coZone" id="coZone"></dd>
+                            <dt>Permits</dt>
+                            <dd name="permits" id="permits"></dd>
+                            <dt>Year Built*</dt>
+                            <dd name="yrblt" id="yrblt"></dd>
+                            <dt>Assessed Property Value*</dt>
+                            <dd name="assessed" id="assessed"></dd>
+                            <dt>Last Sale Date*</dt>
+                            <dd name="saleDate" id="saleDate"></dd>
+                            <dt>Last Sale Price*</dt>
+                            <dd name="salePrice" id="salePrice"></dd>
+                        </dl>
+                    </div>
+                    <div class="card-footer">
+                        <a id='paoLink' target="_blank" href="https://www.manateepao.com/">*Data from Property
+                            Appraiser</a>
+                    </div>
+                </div>
+            </div>
+            <!-- end row 2 -->
+        </div>
+    </div>
+    </div>
+    </div>
+    <!--end GIS hidden container -->
+    </div><!-- end container-->
+</body>
+
+</html>
